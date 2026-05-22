@@ -38,7 +38,7 @@ export default function CalendarScreen() {
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  async function loadCalendar(dateToLoad = selectedDate) {
+  const loadCalendar = useCallback(async (dateToLoad) => {
     try {
       setLoading(true);
       const [dateRows, sessionRows] = await Promise.all([
@@ -54,12 +54,12 @@ export default function CalendarScreen() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
       loadCalendar(selectedDate);
-    }, [selectedDate])
+    }, [loadCalendar, selectedDate])
   );
 
   const markedDates = useMemo(() => {

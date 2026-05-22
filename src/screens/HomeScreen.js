@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -7,16 +7,16 @@ import {
   StyleSheet,
   Text,
   View,
-} from 'react-native';
-import { router, useFocusEffect } from 'expo-router';
+} from "react-native";
+import { router, useFocusEffect } from "expo-router";
 
-import { palette, radius, spacing } from '../constants/design';
+import { palette, radius, spacing } from "../constants/design";
 import {
   getLatestWorkoutSession,
   getWorkoutSessionCountSince,
-} from '../database/sessionQueries';
-import { getLatestBodyWeightLog } from '../database/weightQueries';
-import { getWorkoutPlanCount } from '../database/workoutQueries';
+} from "../database/sessionQueries";
+import { getLatestBodyWeightLog } from "../database/weightQueries";
+import { getWorkoutPlanCount } from "../database/workoutQueries";
 
 function getSevenDaysAgoIso() {
   const date = new Date();
@@ -27,7 +27,7 @@ function getSevenDaysAgoIso() {
 
 function formatDate(value) {
   if (!value) {
-    return '-';
+    return "-";
   }
 
   return new Date(value).toLocaleDateString();
@@ -56,8 +56,8 @@ export default function HomeScreen() {
       setLatestWeight(latestWeightRow);
       setPlanCount(planCountValue);
     } catch (error) {
-      console.error('Failed to load dashboard', error);
-      Alert.alert('Error', 'Could not load dashboard.');
+      console.error("Failed to load dashboard", error);
+      Alert.alert("Error", "Could not load dashboard.");
     } finally {
       setLoading(false);
     }
@@ -66,13 +66,13 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       loadDashboard();
-    }, [])
+    }, []),
   );
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.appName}>SoloFit</Text>
-      <Text style={styles.subtitle}>Offline workout tracker</Text>
+      <Text style={styles.appName}>FORGED</Text>
+      <Text style={styles.subtitle}>Build your strength</Text>
 
       {loading ? (
         <ActivityIndicator color="#ffffff" style={styles.loader} />
@@ -81,12 +81,14 @@ export default function HomeScreen() {
           <View style={styles.heroCard}>
             <Text style={styles.cardLabel}>Last Workout</Text>
             <Text style={styles.heroTitle}>
-              {latestWorkout ? latestWorkout.workout_plan_name : 'No workouts yet'}
+              {latestWorkout
+                ? latestWorkout.workout_plan_name
+                : "No workouts yet"}
             </Text>
             <Text style={styles.heroSubtitle}>
               {latestWorkout
                 ? `${formatDate(latestWorkout.date)} • ${latestWorkout.status}`
-                : 'Start a workout from your Plans tab.'}
+                : "Start a workout from your Plans tab."}
             </Text>
           </View>
 
@@ -107,39 +109,55 @@ export default function HomeScreen() {
           <View style={styles.heroCard}>
             <Text style={styles.cardLabel}>Latest Body Weight</Text>
             <Text style={styles.heroTitle}>
-              {latestWeight ? `${latestWeight.weight_kg} kg` : '-- kg'}
+              {latestWeight ? `${latestWeight.weight_kg} kg` : "-- kg"}
             </Text>
             <Text style={styles.heroSubtitle}>
-              {latestWeight ? latestWeight.date : 'No body weight logs yet.'}
+              {latestWeight ? latestWeight.date : "No body weight logs yet."}
             </Text>
           </View>
 
           <Text style={styles.sectionTitle}>Quick Actions</Text>
 
           <View style={styles.actionsGrid}>
-            <Pressable style={styles.actionButton} onPress={() => router.push('/plan')}>
+            <Pressable
+              style={styles.actionButton}
+              onPress={() => router.push("/plan")}
+            >
               <Text style={styles.actionText}>Plans</Text>
             </Pressable>
 
-            <Pressable style={styles.actionButton} onPress={() => router.push('/add-plan')}>
+            <Pressable
+              style={styles.actionButton}
+              onPress={() => router.push("/add-plan")}
+            >
               <Text style={styles.actionText}>Add Plan</Text>
             </Pressable>
 
-            <Pressable style={styles.actionButton} onPress={() => router.push('/progress')}>
+            <Pressable
+              style={styles.actionButton}
+              onPress={() => router.push("/progress")}
+            >
               <Text style={styles.actionText}>History</Text>
             </Pressable>
 
-            <Pressable style={styles.actionButton} onPress={() => router.push('/weight')}>
+            <Pressable
+              style={styles.actionButton}
+              onPress={() => router.push("/weight")}
+            >
               <Text style={styles.actionText}>Weight</Text>
             </Pressable>
 
-            <Pressable style={styles.actionButton} onPress={() => router.push('/calendar')}>
+            <Pressable
+              style={styles.actionButton}
+              onPress={() => router.push("/calendar")}
+            >
               <Text style={styles.actionText}>Calendar</Text>
             </Pressable>
 
             <Pressable
               style={styles.actionButton}
-              onPress={() => router.push('/progress-tracking')}>
+              onPress={() => router.push("/progress-tracking")}
+            >
               <Text style={styles.actionText}>Progress</Text>
             </Pressable>
           </View>
@@ -161,7 +179,7 @@ const styles = StyleSheet.create({
   appName: {
     color: palette.text,
     fontSize: 32,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   subtitle: {
     color: palette.textMuted,
@@ -183,13 +201,13 @@ const styles = StyleSheet.create({
   cardLabel: {
     color: palette.textMuted,
     fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
+    fontWeight: "700",
+    textTransform: "uppercase",
   },
   heroTitle: {
     color: palette.text,
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginTop: 8,
   },
   heroSubtitle: {
@@ -198,7 +216,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   statsRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
     marginBottom: 14,
   },
@@ -213,7 +231,7 @@ const styles = StyleSheet.create({
   statValue: {
     color: palette.text,
     fontSize: 32,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginTop: 8,
   },
   statHint: {
@@ -224,13 +242,13 @@ const styles = StyleSheet.create({
   sectionTitle: {
     color: palette.text,
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: "700",
     marginTop: 8,
     marginBottom: 12,
   },
   actionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 10,
   },
   actionButton: {
@@ -239,11 +257,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: palette.primary,
     paddingVertical: 14,
-    alignItems: 'center',
-    width: '48%',
+    alignItems: "center",
+    width: "48%",
   },
   actionText: {
     color: palette.text,
-    fontWeight: '700',
+    fontWeight: "700",
   },
 });

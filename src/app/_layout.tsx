@@ -11,9 +11,6 @@ export default function TabLayout() {
 
   useEffect(() => {
     initialiseDatabase()
-      .then(() => {
-        console.log('Database initialised successfully');
-      })
       .catch((error) => {
         console.error('Database initialisation failed', error);
       });

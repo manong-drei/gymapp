@@ -44,7 +44,7 @@ export default function PlanExercisesScreen() {
   const [exercises, setExercises] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  async function loadExercises() {
+  const loadExercises = useCallback(async () => {
     try {
       if (!workoutPlanId) {
         Alert.alert('Missing Plan', 'Could not find the workout plan id.');
@@ -66,12 +66,12 @@ export default function PlanExercisesScreen() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [workoutPlanId]);
 
   useFocusEffect(
     useCallback(() => {
       loadExercises();
-    }, [workoutPlanId])
+    }, [loadExercises])
   );
 
   function confirmDelete(exercise) {

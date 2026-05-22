@@ -112,7 +112,7 @@ export default function WeightScreen() {
     ]);
   }
 
-  function useLogForEditing(log) {
+  function editLog(log) {
     setDate(log.date);
     setWeightKg(String(log.weight_kg));
   }
@@ -126,7 +126,7 @@ export default function WeightScreen() {
         </View>
 
         <View style={styles.cardActions}>
-          <Pressable style={[styles.smallButton, styles.editButton]} onPress={() => useLogForEditing(item)}>
+          <Pressable style={[styles.smallButton, styles.editButton]} onPress={() => editLog(item)}>
             <Text style={styles.smallButtonText}>Edit</Text>
           </Pressable>
           <Pressable style={[styles.smallButton, styles.deleteButton]} onPress={() => confirmDelete(item)}>

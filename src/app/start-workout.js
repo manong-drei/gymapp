@@ -148,10 +148,6 @@ export default function StartWorkoutScreen() {
           getAppSettings(),
         ]);
 
-        console.log(
-          `Loaded ${exerciseRows.length} exercises for workout plan ${workoutPlanId}`
-        );
-
         if (exerciseRows.length === 0) {
           Alert.alert(
             'No Exercises',
