@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -15,11 +15,17 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { palette, radius, spacing } from '../constants/design';
 import { createExercise } from '../database/exerciseQueries';
 import { getNumericParam } from '../utils/routeParams';
-import { isPositiveDecimalOrBlank, isPositiveIntegerOrBlank } from '../utils/validation';
+import {
+  isPositiveDecimalOrBlank,
+  isPositiveIntegerOrBlank,
+  isRepTargetOrBlank,
+  isTargetSetCountOrBlank,
+} from '../utils/validation';
 
 export default function AddExerciseScreen() {
   const { planId } = useLocalSearchParams();
   const workoutPlanId = getNumericParam(planId);
+  const savingRef = useRef(false);
   const [name, setName] = useState('');
   const [targetSets, setTargetSets] = useState('');
   const [targetReps, setTargetReps] = useState('');
@@ -29,34 +35,57 @@ export default function AddExerciseScreen() {
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
+    if (savingRef.current) {
+      return;
+    }
+
+    const trimmedName = name.trim();
+    const trimmedSets = targetSets.trim();
+    const trimmedReps = targetReps.trim();
+    const trimmedWeight = targetWeight.trim();
+    const trimmedRest = restSeconds.trim();
+
     if (!workoutPlanId) {
       Alert.alert('Missing Plan', 'Could not find the workout plan id.');
       return;
     }
 
-    if (!name.trim()) {
+    if (!trimmedName) {
       Alert.alert('Missing Name', 'Exercise name is required.');
       return;
     }
 
-    if (!isPositiveIntegerOrBlank(targetSets)) {
-      Alert.alert('Invalid Sets', 'Target sets must be a whole number greater than 0.');
+    if (!isTargetSetCountOrBlank(trimmedSets)) {
+      Alert.alert('Invalid Sets', 'Target sets must be a whole number from 1 to 20.');
       return;
     }
 
-    if (!isPositiveDecimalOrBlank(targetWeight)) {
+    if (!isRepTargetOrBlank(trimmedReps)) {
+      Alert.alert('Invalid Reps', 'Target reps must be a number like 12 or a range like 8-12.');
+      return;
+    }
+
+    if (!isPositiveDecimalOrBlank(trimmedWeight)) {
       Alert.alert('Invalid Weight', 'Target weight must be greater than 0 kg.');
       return;
     }
 
-    if (!isPositiveIntegerOrBlank(restSeconds)) {
+    if (!isPositiveIntegerOrBlank(trimmedRest)) {
       Alert.alert('Invalid Rest Time', 'Rest time must be a whole number of seconds greater than 0.');
       return;
     }
 
     try {
+      savingRef.current = true;
       setSaving(true);
-      await createExercise(workoutPlanId, name, targetSets, targetReps, targetWeight, restSeconds);
+      await createExercise(
+        workoutPlanId,
+        trimmedName,
+        trimmedSets,
+        trimmedReps,
+        trimmedWeight,
+        trimmedRest
+      );
       setName('');
       setTargetSets('');
       setTargetReps('');
@@ -67,6 +96,7 @@ export default function AddExerciseScreen() {
       console.error('Failed to create exercise', error);
       Alert.alert('Error', 'Could not save exercise.');
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }
@@ -109,6 +139,13 @@ export default function AddExerciseScreen() {
             onChangeText={setTargetReps}
             placeholder="8-12"
             placeholderTextColor="#777"
+            keyboardType={
+              Platform.OS === 'ios'
+                ? 'numbers-and-punctuation'
+                : Platform.OS === 'android'
+                  ? 'visible-password'
+                  : 'default'
+            }
             style={styles.input}
           />
 
@@ -119,7 +156,7 @@ export default function AddExerciseScreen() {
               onChangeText={setTargetWeight}
               placeholder="40"
               placeholderTextColor="#777"
-              keyboardType="decimal-pad"
+              keyboardType="numeric"
               style={styles.unitInput}
             />
             <Text style={styles.unitText}>kg</Text>

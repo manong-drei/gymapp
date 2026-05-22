@@ -4,11 +4,13 @@ export async function createWorkoutPlan(name, description = '') {
   const db = await getDatabase();
   const now = new Date().toISOString();
 
-  return db.runAsync(
+  const result = await db.runAsync(
     `INSERT INTO workout_plans (name, description, created_at, updated_at)
      VALUES (?, ?, ?, ?)`,
     [name.trim(), description.trim(), now, now]
   );
+
+  return result.lastInsertRowId;
 }
 
 export async function getWorkoutPlans() {

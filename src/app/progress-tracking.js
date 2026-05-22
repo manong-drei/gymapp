@@ -14,6 +14,7 @@ import {
   getExerciseProgressHistory,
   getExerciseProgressSummary,
 } from '../database/progressQueries';
+import { palette, radius, spacing } from '../constants/design';
 
 function formatDate(value) {
   if (!value) {
@@ -31,9 +32,52 @@ function formatValue(value, suffix = '') {
   return `${value}${suffix}`;
 }
 
+function getBestSet(sets) {
+  return sets.reduce((bestSet, set) => {
+    if (!bestSet) {
+      return set;
+    }
+
+    const setWeight = Number(set.weight_kg ?? 0);
+    const bestWeight = Number(bestSet.weight_kg ?? 0);
+    const setReps = Number(set.reps ?? 0);
+    const bestReps = Number(bestSet.reps ?? 0);
+
+    if (setWeight > bestWeight || (setWeight === bestWeight && setReps > bestReps)) {
+      return set;
+    }
+
+    return bestSet;
+  }, null);
+}
+
+function groupSetsByExercise(records, fallbackExercise) {
+  const groupsByKey = {};
+
+  for (const record of records) {
+    const exerciseKey = String(record.exercise_id ?? fallbackExercise.exercise_id);
+
+    if (!groupsByKey[exerciseKey]) {
+      groupsByKey[exerciseKey] = {
+        exerciseKey,
+        exerciseName: record.exercise_name ?? fallbackExercise.exercise_name,
+        sets: [],
+      };
+    }
+
+    groupsByKey[exerciseKey].sets.push(record);
+  }
+
+  return Object.values(groupsByKey).map((group) => ({
+    ...group,
+    sets: group.sets.sort((first, second) => first.set_number - second.set_number),
+    bestSet: getBestSet(group.sets),
+  }));
+}
+
 export default function ProgressTrackingScreen() {
   const [summaries, setSummaries] = useState([]);
-  const [expandedExerciseId, setExpandedExerciseId] = useState(null);
+  const [expandedExercises, setExpandedExercises] = useState({});
   const [historyByExercise, setHistoryByExercise] = useState({});
   const [loading, setLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -58,12 +102,10 @@ export default function ProgressTrackingScreen() {
   );
 
   async function toggleExercise(exerciseId) {
-    if (expandedExerciseId === exerciseId) {
-      setExpandedExerciseId(null);
-      return;
-    }
-
-    setExpandedExerciseId(exerciseId);
+    setExpandedExercises((current) => ({
+      ...current,
+      [exerciseId]: !current[exerciseId],
+    }));
 
     if (historyByExercise[exerciseId]) {
       return;
@@ -81,60 +123,50 @@ export default function ProgressTrackingScreen() {
     }
   }
 
-  function renderHistoryRow(item) {
+  function renderSetLine(item) {
     return (
-      <View key={item.id} style={styles.historyRow}>
-        <Text style={styles.historyDate}>{formatDate(item.date)}</Text>
-        <Text style={styles.historyText}>
+      <Text key={item.id} style={styles.setLine}>
+        {formatDate(item.date)} -{' '}
           Set {item.set_number}: {formatValue(item.weight_kg, ' kg')} x{' '}
           {formatValue(item.reps, ' reps')}
-        </Text>
-        <Text style={styles.historyVolume}>Volume: {formatValue(item.volume, ' kg')}</Text>
-      </View>
+      </Text>
     );
   }
 
   function renderSummary({ item }) {
-    const isExpanded = expandedExerciseId === item.exercise_id;
+    const isExpanded = Boolean(expandedExercises[item.exercise_id]);
     const history = historyByExercise[item.exercise_id] || [];
+    const groupedHistory = groupSetsByExercise(history, item);
+    const bestText = `Best: ${formatValue(item.best_weight_kg, 'kg')} x ${formatValue(
+      item.best_reps,
+      ' reps'
+    )}`;
 
     return (
       <View style={styles.card}>
-        <Pressable onPress={() => toggleExercise(item.exercise_id)}>
-          <Text style={styles.cardTitle}>{item.exercise_name}</Text>
-          <Text style={styles.lastTrained}>Last trained: {formatDate(item.last_trained_at)}</Text>
-
-          <View style={styles.statsGrid}>
-            <View style={styles.statBox}>
-              <Text style={styles.statLabel}>Best Weight</Text>
-              <Text style={styles.statValue}>{formatValue(item.best_weight_kg, ' kg')}</Text>
-            </View>
-
-            <View style={styles.statBox}>
-              <Text style={styles.statLabel}>Best Reps</Text>
-              <Text style={styles.statValue}>{formatValue(item.best_reps)}</Text>
-            </View>
-
-            <View style={styles.statBox}>
-              <Text style={styles.statLabel}>Best Volume</Text>
-              <Text style={styles.statValue}>{formatValue(item.best_volume, ' kg')}</Text>
-            </View>
-
-            <View style={styles.statBox}>
-              <Text style={styles.statLabel}>Total Sets</Text>
-              <Text style={styles.statValue}>{formatValue(item.total_sets)}</Text>
-            </View>
+        <Pressable style={styles.cardHeader} onPress={() => toggleExercise(item.exercise_id)}>
+          <View style={styles.cardHeaderText}>
+            <Text style={styles.cardTitle}>{item.exercise_name}</Text>
+            <Text style={styles.summaryText}>
+              {formatValue(item.total_sets)} sets - {bestText}
+            </Text>
+            <Text style={styles.lastTrained}>Last trained: {formatDate(item.last_trained_at)}</Text>
           </View>
-
-          <Text style={styles.expandText}>{isExpanded ? 'Hide History' : 'Show History'}</Text>
+          <Text style={styles.expandIcon}>{isExpanded ? '^' : 'v'}</Text>
         </Pressable>
 
         {isExpanded ? (
           <View style={styles.historyContainer}>
             {historyLoading && history.length === 0 ? (
               <ActivityIndicator color="#ffffff" />
+            ) : history.length === 0 ? (
+              <Text style={styles.setLine}>No set history found.</Text>
             ) : (
-              history.slice(0, 10).map(renderHistoryRow)
+              groupedHistory.map((group) => (
+                <View key={group.exerciseKey} style={styles.setGroup}>
+                  {group.sets.map(renderSetLine)}
+                </View>
+              ))
             )}
           </View>
         ) : null}
@@ -169,16 +201,16 @@ export default function ProgressTrackingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111',
-    padding: 20,
+    backgroundColor: palette.background,
+    padding: spacing.page,
   },
   title: {
-    color: '#fff',
+    color: palette.text,
     fontSize: 30,
     fontWeight: 'bold',
   },
   subtitle: {
-    color: '#aaa',
+    color: palette.textMuted,
     fontSize: 14,
     marginTop: 8,
     marginBottom: 20,
@@ -188,81 +220,59 @@ const styles = StyleSheet.create({
   },
   list: {
     gap: 12,
-    paddingBottom: 24,
+    paddingBottom: 112,
   },
   card: {
-    backgroundColor: '#1d1d1d',
-    borderRadius: 8,
-    padding: 16,
+    backgroundColor: palette.surface,
+    borderRadius: radius.md,
+    padding: spacing.card,
     borderWidth: 1,
-    borderColor: '#2a2a2a',
+    borderColor: palette.border,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  cardHeaderText: {
+    flex: 1,
   },
   cardTitle: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '700',
+    color: palette.text,
+    fontSize: 18,
+    fontWeight: '800',
   },
-  lastTrained: {
-    color: '#aaa',
+  summaryText: {
+    color: palette.textSoft,
     fontSize: 13,
+    fontWeight: '700',
     marginTop: 6,
   },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginTop: 14,
-  },
-  statBox: {
-    backgroundColor: '#111',
-    borderColor: '#333',
-    borderRadius: 8,
-    borderWidth: 1,
-    padding: 10,
-    width: '47%',
-  },
-  statLabel: {
-    color: '#aaa',
+  lastTrained: {
+    color: palette.textMuted,
     fontSize: 12,
-    fontWeight: '700',
-  },
-  statValue: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
     marginTop: 4,
   },
-  expandText: {
-    color: '#7bd88f',
-    fontWeight: '700',
-    marginTop: 14,
+  expandIcon: {
+    color: palette.textMuted,
+    fontSize: 18,
+    fontWeight: '800',
+    lineHeight: 24,
   },
   historyContainer: {
-    borderTopColor: '#333',
+    borderTopColor: palette.border,
     borderTopWidth: 1,
-    marginTop: 14,
-    paddingTop: 12,
-    gap: 10,
+    marginTop: 12,
+    paddingTop: 10,
   },
-  historyRow: {
-    backgroundColor: '#111',
-    borderRadius: 8,
-    padding: 10,
+  setGroup: {
+    gap: 6,
   },
-  historyDate: {
-    color: '#aaa',
-    fontSize: 12,
-  },
-  historyText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '700',
-    marginTop: 4,
-  },
-  historyVolume: {
-    color: '#ccc',
+  setLine: {
+    color: palette.textSoft,
     fontSize: 13,
-    marginTop: 4,
+    lineHeight: 19,
   },
   emptyContainer: {
     flexGrow: 1,
@@ -271,7 +281,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   emptyText: {
-    color: '#aaa',
+    color: palette.textMuted,
     textAlign: 'center',
     fontSize: 16,
     lineHeight: 24,

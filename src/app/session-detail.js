@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 
+import { palette, radius, spacing } from '../constants/design';
 import { getWorkoutSessionById, getWorkoutSetsBySessionId } from '../database/sessionQueries';
 import { getNumericParam } from '../utils/routeParams';
 
@@ -19,6 +20,29 @@ function formatValue(value, suffix = '') {
   }
 
   return `${value}${suffix}`;
+}
+
+function groupSetsByExercise(sets) {
+  const groupsByKey = {};
+
+  for (const set of sets) {
+    const exerciseKey = String(set.exercise_id ?? set.exercise_name);
+
+    if (!groupsByKey[exerciseKey]) {
+      groupsByKey[exerciseKey] = {
+        exerciseKey,
+        exerciseName: set.exercise_name,
+        sets: [],
+      };
+    }
+
+    groupsByKey[exerciseKey].sets.push(set);
+  }
+
+  return Object.values(groupsByKey).map((group) => ({
+    ...group,
+    sets: group.sets.sort((first, second) => first.set_number - second.set_number),
+  }));
 }
 
 export default function SessionDetailScreen() {
@@ -61,14 +85,18 @@ export default function SessionDetailScreen() {
     loadSession();
   }, [sessionId]);
 
-  function renderSet({ item }) {
+  const groupedSets = groupSetsByExercise(sets);
+
+  function renderExerciseGroup({ item }) {
     return (
       <View style={styles.setCard}>
-        <Text style={styles.exerciseName}>{item.exercise_name}</Text>
-        <Text style={styles.setLine}>
-          Set {item.set_number}: {formatValue(item.weight_kg, ' kg')} x{' '}
-          {formatValue(item.reps, ' reps')}
-        </Text>
+        <Text style={styles.exerciseName}>{item.exerciseName}</Text>
+        {item.sets.map((set) => (
+          <Text key={set.id} style={styles.setLine}>
+            Set {set.set_number}: {formatValue(set.weight_kg, ' kg')} x{' '}
+            {formatValue(set.reps, ' reps')}
+          </Text>
+        ))}
       </View>
     );
   }
@@ -90,10 +118,10 @@ export default function SessionDetailScreen() {
       <Text style={styles.sectionTitle}>Sets</Text>
 
       <FlatList
-        data={sets}
-        keyExtractor={(item) => String(item.id)}
-        renderItem={renderSet}
-        contentContainerStyle={sets.length === 0 ? styles.emptyContainer : styles.list}
+        data={groupedSets}
+        keyExtractor={(item) => item.exerciseKey}
+        renderItem={renderExerciseGroup}
+        contentContainerStyle={groupedSets.length === 0 ? styles.emptyContainer : styles.list}
         ListEmptyComponent={<Text style={styles.emptyText}>No sets were saved.</Text>}
       />
     </View>
@@ -103,33 +131,33 @@ export default function SessionDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111',
-    padding: 20,
+    backgroundColor: palette.background,
+    padding: spacing.page,
   },
   centeredContainer: {
     flex: 1,
-    backgroundColor: '#111',
+    backgroundColor: palette.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
   title: {
-    color: '#fff',
+    color: palette.text,
     fontSize: 30,
     fontWeight: 'bold',
   },
   date: {
-    color: '#aaa',
+    color: palette.textMuted,
     fontSize: 14,
     marginTop: 8,
   },
   notes: {
-    color: '#ccc',
+    color: palette.textSoft,
     fontSize: 14,
     lineHeight: 20,
     marginTop: 14,
   },
   sectionTitle: {
-    color: '#fff',
+    color: palette.text,
     fontSize: 20,
     fontWeight: '700',
     marginTop: 24,
@@ -137,22 +165,22 @@ const styles = StyleSheet.create({
   },
   list: {
     gap: 10,
-    paddingBottom: 24,
+    paddingBottom: 112,
   },
   setCard: {
-    backgroundColor: '#1d1d1d',
-    borderRadius: 8,
-    padding: 14,
+    backgroundColor: palette.surface,
+    borderRadius: radius.md,
+    padding: spacing.card,
     borderWidth: 1,
-    borderColor: '#2a2a2a',
+    borderColor: palette.border,
   },
   exerciseName: {
-    color: '#fff',
+    color: palette.text,
     fontSize: 16,
     fontWeight: '700',
   },
   setLine: {
-    color: '#ccc',
+    color: palette.textSoft,
     fontSize: 14,
     marginTop: 6,
   },
@@ -163,7 +191,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   emptyText: {
-    color: '#aaa',
+    color: palette.textMuted,
     textAlign: 'center',
     fontSize: 16,
     lineHeight: 24,

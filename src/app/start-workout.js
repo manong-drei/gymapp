@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -13,7 +14,7 @@ import {
   Vibration,
   View,
 } from 'react-native';
-import { router, useLocalSearchParams, useNavigation } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
 
 import { palette, radius, spacing } from '../constants/design';
 import { getExercisesByWorkoutPlanId } from '../database/exerciseQueries';
@@ -23,6 +24,7 @@ import { createCompletedWorkoutSession } from '../database/sessionQueries';
 import { getWorkoutPlanById } from '../database/workoutQueries';
 import { getNumericParam } from '../utils/routeParams';
 import {
+  isPositiveDecimal,
   isPositiveDecimalOrBlank,
   isPositiveInteger,
   isPositiveIntegerOrBlank,
@@ -59,6 +61,41 @@ function formatSetValue(value, suffix = '') {
   return `${value}${suffix}`;
 }
 
+function hasRecordedSetValue(set) {
+  return String(set.weightKg ?? '').trim() !== '' || String(set.reps ?? '').trim() !== '';
+}
+
+function isRecordedSetValid(set) {
+  return isPositiveDecimal(set.weightKg) && isPositiveInteger(set.reps);
+}
+
+function getExerciseKey(exercise) {
+  return String(exercise.id ?? exercise.name);
+}
+
+function getBestSet(sets) {
+  return sets.filter(isRecordedSetValid).reduce((bestSet, set) => {
+    if (!bestSet) {
+      return set;
+    }
+
+    const setWeight = Number(set.weightKg);
+    const bestWeight = Number(bestSet.weightKg);
+    const setReps = Number(set.reps);
+    const bestReps = Number(bestSet.reps);
+
+    if (setWeight > bestWeight || (setWeight === bestWeight && setReps > bestReps)) {
+      return set;
+    }
+
+    return bestSet;
+  }, null);
+}
+
+function isExerciseCompleted(sets) {
+  return sets.length > 0 && sets.every((set) => set.completed);
+}
+
 export default function StartWorkoutScreen() {
   const { planId } = useLocalSearchParams();
   const navigation = useNavigation();
@@ -66,6 +103,7 @@ export default function StartWorkoutScreen() {
   const [plan, setPlan] = useState(null);
   const [exercises, setExercises] = useState([]);
   const [setsByExercise, setSetsByExercise] = useState({});
+  const [collapsedExercises, setCollapsedExercises] = useState({});
   const [previousSetsByExercise, setPreviousSetsByExercise] = useState({});
   const [notes, setNotes] = useState('');
   const [restSeconds, setRestSeconds] = useState('90');
@@ -76,8 +114,12 @@ export default function StartWorkoutScreen() {
   const [saving, setSaving] = useState(false);
   const allowExitRef = useRef(false);
   const hasUnsavedInputRef = useRef(false);
+  const savingRef = useRef(false);
 
-  useEffect(() => {
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true;
+
     async function loadWorkout() {
       try {
         if (!workoutPlanId) {
@@ -85,6 +127,20 @@ export default function StartWorkoutScreen() {
           router.back();
           return;
         }
+
+        allowExitRef.current = false;
+        hasUnsavedInputRef.current = false;
+        savingRef.current = false;
+        setLoading(true);
+        setSaving(false);
+        setTimerRunning(false);
+        setTimerSeconds(0);
+        setNotes('');
+        setPlan(null);
+        setExercises([]);
+        setSetsByExercise({});
+        setCollapsedExercises({});
+        setPreviousSetsByExercise({});
 
         const [planRow, exerciseRows, appSettings] = await Promise.all([
           getWorkoutPlanById(workoutPlanId),
@@ -96,13 +152,26 @@ export default function StartWorkoutScreen() {
           `Loaded ${exerciseRows.length} exercises for workout plan ${workoutPlanId}`
         );
 
+        if (exerciseRows.length === 0) {
+          Alert.alert(
+            'No Exercises',
+            'Add at least one exercise to this workout plan before starting.',
+            [{ text: 'OK', onPress: () => router.back() }]
+          );
+          return;
+        }
+
+        if (!isActive) {
+          return;
+        }
+
         setPlan(planRow);
         setExercises(exerciseRows);
         setSetsByExercise(buildInitialSets(exerciseRows));
 
         const previousPerformanceEntries = await Promise.all(
           exerciseRows.map(async (exercise) => {
-            const previousSets = await getLastExercisePerformance(exercise.id);
+            const previousSets = await getLastExercisePerformance(exercise.id, workoutPlanId);
             return [exercise.id, previousSets];
           })
         );
@@ -120,12 +189,19 @@ export default function StartWorkoutScreen() {
         console.error('Failed to load workout', error);
         Alert.alert('Error', 'Could not load workout.');
       } finally {
-        setLoading(false);
+        if (isActive) {
+          setLoading(false);
+        }
       }
     }
 
     loadWorkout();
-  }, [workoutPlanId]);
+
+      return () => {
+        isActive = false;
+      };
+    }, [workoutPlanId])
+  );
 
   useEffect(() => {
     if (!timerRunning || timerSeconds <= 0) {
@@ -273,7 +349,21 @@ export default function StartWorkoutScreen() {
       return;
     }
 
-    updateSetValue(exerciseId, setIndex, 'completed', true);
+    setSetsByExercise((current) => {
+      const currentSets = current[exerciseId] || [];
+      const nextSets = currentSets.map((set, index) =>
+        index === setIndex ? { ...set, completed: true } : set
+      );
+
+      if (isExerciseCompleted(nextSets)) {
+        setCollapsedExercises((currentCollapsed) => ({
+          ...currentCollapsed,
+          [String(exerciseId)]: true,
+        }));
+      }
+
+      return { ...current, [exerciseId]: nextSets };
+    });
     startRestTimer();
   }
 
@@ -308,7 +398,61 @@ export default function StartWorkoutScreen() {
     });
   }
 
+  function markRecordedSetsCompleted() {
+    setSetsByExercise((current) => {
+      const nextSetsByExercise = {};
+      const nextCollapsedExercises = {};
+
+      for (const [exerciseId, sets] of Object.entries(current)) {
+        nextSetsByExercise[exerciseId] = sets.map((set) =>
+          hasRecordedSetValue(set) ? { ...set, completed: true } : set
+        );
+
+        if (isExerciseCompleted(nextSetsByExercise[exerciseId])) {
+          nextCollapsedExercises[exerciseId] = true;
+        }
+      }
+
+      setCollapsedExercises((currentCollapsed) => ({
+        ...currentCollapsed,
+        ...nextCollapsedExercises,
+      }));
+
+      return nextSetsByExercise;
+    });
+  }
+
+  function toggleExerciseCollapse(exercise) {
+    const exerciseKey = getExerciseKey(exercise);
+
+    setCollapsedExercises((current) => ({
+      ...current,
+      [exerciseKey]: !current[exerciseKey],
+    }));
+  }
+
+  function renderExerciseSummary(exercise, sets) {
+    const completedSets = sets.filter((set) => set.completed || isRecordedSetValid(set));
+    const bestSet = getBestSet(sets);
+    const bestText = bestSet
+      ? `Best: ${formatSetValue(bestSet.weightKg, 'kg')} x ${formatSetValue(bestSet.reps, ' reps')}`
+      : 'Best: -';
+
+    return (
+      <>
+        <Text style={styles.exerciseSummary}>
+          Completed - {completedSets.length} sets - {bestText}
+        </Text>
+        <Text style={styles.tapHint}>Tap to expand</Text>
+      </>
+    );
+  }
+
   async function finishWorkout() {
+    if (savingRef.current) {
+      return;
+    }
+
     if (exercises.length === 0) {
       Alert.alert('No Exercises', 'Add exercises to this workout plan before starting.');
       return;
@@ -334,7 +478,12 @@ export default function StartWorkoutScreen() {
     }
 
     try {
+      savingRef.current = true;
       setSaving(true);
+      setTimerRunning(false);
+      setTimerSeconds(0);
+      Vibration.cancel();
+      markRecordedSetsCompleted();
       await createCompletedWorkoutSession(workoutPlanId, completedSets, notes);
       allowExitRef.current = true;
       Alert.alert('Workout Saved', 'Your workout session was saved.', [
@@ -347,6 +496,7 @@ export default function StartWorkoutScreen() {
       console.error('Failed to save workout session', error);
       Alert.alert('Error', 'Could not save workout session.');
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }
@@ -399,12 +549,40 @@ export default function StartWorkoutScreen() {
         {exercises.length === 0 ? (
           <Text style={styles.emptyText}>No exercises yet. Add exercises before starting.</Text>
         ) : (
-          exercises.map((exercise) => (
-            <View key={exercise.id} style={styles.exerciseCard}>
-              <Text style={styles.exerciseTitle}>{exercise.name}</Text>
-              <Text style={styles.exerciseTarget}>
-                Target: {exercise.target_sets || '-'} sets x {exercise.target_reps || '-'} reps
-              </Text>
+          exercises.map((exercise) => {
+            const exerciseKey = getExerciseKey(exercise);
+            const exerciseSets = setsByExercise[exercise.id] || [];
+            const exerciseCompleted = isExerciseCompleted(exerciseSets);
+            const isCollapsed = exerciseCompleted && collapsedExercises[exerciseKey];
+
+            return (
+              <View key={exerciseKey} style={styles.exerciseCard}>
+                <Pressable
+                  style={styles.exerciseHeader}
+                  onPress={() => {
+                    if (exerciseCompleted) {
+                      toggleExerciseCollapse(exercise);
+                    }
+                  }}>
+                  <View style={styles.exerciseHeaderText}>
+                    <Text style={styles.exerciseTitle}>{exercise.name}</Text>
+                    <Text style={styles.exerciseTarget}>
+                      Target: {exercise.target_sets || '-'} sets x {exercise.target_reps || '-'} reps
+                    </Text>
+                  </View>
+                  {exerciseCompleted ? (
+                    <View style={styles.collapseButton}>
+                      <MaterialIcons
+                        name={isCollapsed ? 'keyboard-arrow-down' : 'keyboard-arrow-up'}
+                        color={palette.text}
+                        size={24}
+                      />
+                    </View>
+                  ) : null}
+                </Pressable>
+
+                {isCollapsed ? renderExerciseSummary(exercise, exerciseSets) : (
+                  <>
 
               <View style={styles.previousPerformanceBox}>
                 <Text style={styles.previousTitle}>Last Time</Text>
@@ -420,7 +598,7 @@ export default function StartWorkoutScreen() {
                 )}
               </View>
 
-              {(setsByExercise[exercise.id] || []).map((set, setIndex) => (
+              {exerciseSets.map((set, setIndex) => (
                 <View key={`${exercise.id}-${set.setNumber}`} style={styles.setRow}>
                   <Text style={styles.setNumber}>Set {set.setNumber}</Text>
                   <View style={styles.weightInputWrapper}>
@@ -460,8 +638,11 @@ export default function StartWorkoutScreen() {
               <Pressable style={styles.addSetButton} onPress={() => addSet(exercise.id)}>
                 <Text style={styles.addSetText}>Add Set</Text>
               </Pressable>
+                  </>
+                )}
             </View>
-          ))
+            );
+          })
         )}
 
         <Text style={styles.label}>Notes</Text>
@@ -587,6 +768,15 @@ const styles = StyleSheet.create({
     borderColor: palette.border,
     marginBottom: 14,
   },
+  exerciseHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  exerciseHeaderText: {
+    flex: 1,
+  },
   exerciseTitle: {
     color: palette.text,
     fontSize: 20,
@@ -597,6 +787,28 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 6,
     marginBottom: 12,
+  },
+  collapseButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: palette.surfaceRaised,
+    borderColor: palette.border,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  exerciseSummary: {
+    color: palette.textSoft,
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 20,
+    marginTop: 6,
+  },
+  tapHint: {
+    color: palette.textMuted,
+    fontSize: 12,
+    marginTop: 6,
   },
   previousPerformanceBox: {
     backgroundColor: palette.background,

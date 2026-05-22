@@ -16,7 +16,12 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { palette, radius, spacing } from '../constants/design';
 import { getExerciseById, updateExercise } from '../database/exerciseQueries';
 import { getNumericParam } from '../utils/routeParams';
-import { isPositiveDecimalOrBlank, isPositiveIntegerOrBlank } from '../utils/validation';
+import {
+  isPositiveDecimalOrBlank,
+  isPositiveIntegerOrBlank,
+  isRepTargetOrBlank,
+  isTargetSetCountOrBlank,
+} from '../utils/validation';
 
 function toInputValue(value) {
   if (value === null || value === undefined) {
@@ -71,34 +76,52 @@ export default function EditExerciseScreen() {
   }, [exerciseId]);
 
   async function handleSave() {
+    const trimmedName = name.trim();
+    const trimmedSets = targetSets.trim();
+    const trimmedReps = targetReps.trim();
+    const trimmedWeight = targetWeight.trim();
+    const trimmedRest = restSeconds.trim();
+
     if (!exerciseId) {
       Alert.alert('Missing Exercise', 'Could not find the exercise id.');
       return;
     }
 
-    if (!name.trim()) {
+    if (!trimmedName) {
       Alert.alert('Missing Name', 'Exercise name is required.');
       return;
     }
 
-    if (!isPositiveIntegerOrBlank(targetSets)) {
-      Alert.alert('Invalid Sets', 'Target sets must be a whole number greater than 0.');
+    if (!isTargetSetCountOrBlank(trimmedSets)) {
+      Alert.alert('Invalid Sets', 'Target sets must be a whole number from 1 to 20.');
       return;
     }
 
-    if (!isPositiveDecimalOrBlank(targetWeight)) {
+    if (!isRepTargetOrBlank(trimmedReps)) {
+      Alert.alert('Invalid Reps', 'Target reps must be a number like 12 or a range like 8-12.');
+      return;
+    }
+
+    if (!isPositiveDecimalOrBlank(trimmedWeight)) {
       Alert.alert('Invalid Weight', 'Target weight must be greater than 0 kg.');
       return;
     }
 
-    if (!isPositiveIntegerOrBlank(restSeconds)) {
+    if (!isPositiveIntegerOrBlank(trimmedRest)) {
       Alert.alert('Invalid Rest Time', 'Rest time must be a whole number of seconds greater than 0.');
       return;
     }
 
     try {
       setSaving(true);
-      await updateExercise(exerciseId, name, targetSets, targetReps, targetWeight, restSeconds);
+      await updateExercise(
+        exerciseId,
+        trimmedName,
+        trimmedSets,
+        trimmedReps,
+        trimmedWeight,
+        trimmedRest
+      );
       router.back();
     } catch (error) {
       console.error('Failed to update exercise', error);
@@ -150,6 +173,13 @@ export default function EditExerciseScreen() {
           onChangeText={setTargetReps}
           placeholder="8-12"
           placeholderTextColor="#777"
+          keyboardType={
+            Platform.OS === 'ios'
+              ? 'numbers-and-punctuation'
+              : Platform.OS === 'android'
+                ? 'visible-password'
+                : 'default'
+          }
           style={styles.input}
         />
 
@@ -160,7 +190,7 @@ export default function EditExerciseScreen() {
             onChangeText={setTargetWeight}
             placeholder="40"
             placeholderTextColor="#777"
-            keyboardType="decimal-pad"
+            keyboardType="numeric"
             style={styles.unitInput}
           />
           <Text style={styles.unitText}>kg</Text>

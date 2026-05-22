@@ -1,5 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Tabs } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/design';
 import { useTheme } from '@/hooks/use-theme';
@@ -17,19 +18,26 @@ function TabIcon({ icon, color }: { icon: string; color: string }) {
 
 export default function AppTabs() {
   const colors = useTheme();
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 8);
 
   return (
     <Tabs
+      backBehavior="history"
       screenOptions={{
         headerShown: false,
+        sceneStyle: {
+          backgroundColor: palette.background,
+          paddingTop: Math.max(insets.top, 12),
+        },
         tabBarActiveTintColor: colors.text,
         tabBarInactiveTintColor: colors.textSecondary,
         tabBarStyle: {
           backgroundColor: palette.surface,
           borderTopColor: palette.border,
-          height: 64,
+          height: 56 + bottomInset,
           paddingTop: 8,
-          paddingBottom: 8,
+          paddingBottom: bottomInset,
         },
         tabBarLabelStyle: {
           fontSize: 12,

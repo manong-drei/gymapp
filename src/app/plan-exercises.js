@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import {
   ActivityIndicator,
   Alert,
@@ -9,7 +10,9 @@ import {
   View,
 } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { palette, radius, spacing } from '../constants/design';
 import { deleteExercise, getExercisesByWorkoutPlanId } from '../database/exerciseQueries';
 import { getWorkoutPlanById } from '../database/workoutQueries';
 import { getNumericParam } from '../utils/routeParams';
@@ -22,8 +25,20 @@ function formatValue(value, suffix = '') {
   return `${value}${suffix}`;
 }
 
+function StatPill({ label, value }) {
+  return (
+    <View style={styles.statPill}>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
 export default function PlanExercisesScreen() {
   const { planId } = useLocalSearchParams();
+  const insets = useSafeAreaInsets();
   const workoutPlanId = getNumericParam(planId);
   const [plan, setPlan] = useState(null);
   const [exercises, setExercises] = useState([]);
@@ -83,11 +98,11 @@ export default function PlanExercisesScreen() {
       <View style={styles.card}>
         <Text style={styles.cardTitle}>{item.name}</Text>
 
-        <View style={styles.statsGrid}>
-          <Text style={styles.statText}>Sets: {formatValue(item.target_sets)}</Text>
-          <Text style={styles.statText}>Reps: {formatValue(item.target_reps)}</Text>
-          <Text style={styles.statText}>Weight: {formatValue(item.target_weight, ' kg')}</Text>
-          <Text style={styles.statText}>Rest: {formatValue(item.rest_seconds, ' sec')}</Text>
+        <View style={styles.statsRow}>
+          <StatPill label="Sets" value={formatValue(item.target_sets)} />
+          <StatPill label="Reps" value={formatValue(item.target_reps)} />
+          <StatPill label="Weight" value={formatValue(item.target_weight, 'kg')} />
+          <StatPill label="Rest" value={formatValue(item.rest_seconds, 's')} />
         </View>
 
         <View style={styles.cardActions}>
@@ -117,14 +132,6 @@ export default function PlanExercisesScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>{plan?.name || 'Exercises'}</Text>
         <Text style={styles.subtitle}>Manage exercises for this workout plan.</Text>
-
-        <Pressable
-          style={styles.addButton}
-          onPress={() =>
-            router.push({ pathname: '/add-exercise', params: { planId: workoutPlanId } })
-          }>
-          <Text style={styles.addButtonText}>Add Exercise</Text>
-        </Pressable>
       </View>
 
       {loading ? (
@@ -142,6 +149,15 @@ export default function PlanExercisesScreen() {
           }
         />
       )}
+
+      <Pressable
+        style={[styles.addButton, { bottom: Math.max(insets.bottom, 16) }]}
+        onPress={() =>
+          router.push({ pathname: '/add-exercise', params: { planId: workoutPlanId } })
+        }>
+        <MaterialIcons name="add" color="#fff" size={22} />
+        <Text style={styles.addButtonText}>Add Exercise</Text>
+      </Pressable>
     </View>
   );
 }
@@ -149,31 +165,38 @@ export default function PlanExercisesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111',
-    padding: 20,
+    backgroundColor: palette.background,
+    padding: spacing.page,
   },
   header: {
-    gap: 10,
-    marginBottom: 20,
+    gap: 8,
+    marginBottom: 18,
   },
   title: {
-    color: '#fff',
+    color: palette.text,
     fontSize: 30,
-    fontWeight: 'bold',
+    fontWeight: '800',
   },
   subtitle: {
-    color: '#aaa',
+    color: palette.textMuted,
     fontSize: 14,
   },
   addButton: {
-    backgroundColor: '#2f80ed',
-    borderRadius: 8,
+    position: 'absolute',
+    left: spacing.page,
+    right: spacing.page,
+    backgroundColor: palette.primary,
+    borderRadius: radius.sm,
+    minHeight: 56,
+    paddingHorizontal: 18,
     paddingVertical: 14,
     alignItems: 'center',
-    marginTop: 8,
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
   },
   addButtonText: {
-    color: '#fff',
+    color: palette.text,
     fontSize: 16,
     fontWeight: '700',
   },
@@ -181,48 +204,70 @@ const styles = StyleSheet.create({
     marginTop: 40,
   },
   listContent: {
-    paddingBottom: 24,
+    paddingBottom: 96,
     gap: 12,
   },
   card: {
-    backgroundColor: '#1d1d1d',
-    borderRadius: 8,
-    padding: 16,
+    backgroundColor: palette.surface,
+    borderRadius: radius.md,
+    padding: 12,
     borderWidth: 1,
-    borderColor: '#2a2a2a',
+    borderColor: palette.border,
   },
   cardTitle: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '700',
+    color: palette.text,
+    fontSize: 17,
+    fontWeight: '800',
   },
-  statsGrid: {
+  statsRow: {
+    flexDirection: 'row',
     gap: 6,
-    marginTop: 12,
+    marginTop: 10,
   },
-  statText: {
-    color: '#ccc',
-    fontSize: 14,
+  statPill: {
+    flex: 1,
+    backgroundColor: palette.background,
+    borderColor: palette.border,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    paddingHorizontal: 6,
+    paddingVertical: 7,
+    minWidth: 0,
+  },
+  statLabel: {
+    color: palette.textMuted,
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  statValue: {
+    color: palette.text,
+    fontSize: 13,
+    fontWeight: '800',
+    marginTop: 2,
   },
   cardActions: {
     flexDirection: 'row',
-    gap: 10,
-    marginTop: 16,
+    gap: 8,
+    marginTop: 10,
+    justifyContent: 'flex-end',
   },
   smallButton: {
-    flex: 1,
-    borderRadius: 8,
-    paddingVertical: 10,
+    minWidth: 82,
+    borderRadius: radius.sm,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     alignItems: 'center',
   },
   editButton: {
-    backgroundColor: '#333',
+    backgroundColor: palette.surfaceRaised,
   },
   deleteButton: {
-    backgroundColor: '#8a2424',
+    backgroundColor: palette.dangerMuted,
   },
   smallButtonText: {
-    color: '#fff',
+    color: palette.text,
+    fontSize: 13,
     fontWeight: '700',
   },
   emptyContainer: {
@@ -230,9 +275,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
+    paddingBottom: 96,
   },
   emptyText: {
-    color: '#aaa',
+    color: palette.textMuted,
     textAlign: 'center',
     fontSize: 16,
     lineHeight: 24,

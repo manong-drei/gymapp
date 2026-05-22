@@ -180,84 +180,96 @@ export default function WeightScreen() {
     );
   }
 
+  function renderHeader() {
+    return (
+      <>
+        <Text style={styles.title}>Body Weight</Text>
+
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryLabel}>Latest Weight</Text>
+          <Text style={styles.summaryValue}>
+            {latestLog ? `${latestLog.weight_kg} kg` : '-- kg'}
+          </Text>
+          <Text style={styles.summaryDate}>{latestLog ? latestLog.date : 'No logs yet'}</Text>
+        </View>
+
+        <View style={styles.formCard}>
+          <Text style={styles.label}>Date</Text>
+          <TextInput
+            value={date}
+            onChangeText={setDate}
+            placeholder="YYYY-MM-DD"
+            placeholderTextColor="#777"
+            style={styles.input}
+          />
+
+          <Text style={styles.label}>Weight</Text>
+          <View style={styles.inputWithUnit}>
+            <TextInput
+              value={weightKg}
+              onChangeText={setWeightKg}
+              placeholder="70"
+              placeholderTextColor="#777"
+              keyboardType="decimal-pad"
+              style={styles.unitInput}
+            />
+            <Text style={styles.unitText}>kg</Text>
+          </View>
+
+          <Pressable
+            style={[styles.saveButton, saving && styles.disabledButton]}
+            onPress={handleSave}
+            disabled={saving}>
+            <Text style={styles.saveButtonText}>{saving ? 'Saving...' : 'Save Weight'}</Text>
+          </Pressable>
+        </View>
+
+        {renderWeightChart()}
+
+        <View style={styles.historyHeader}>
+          <Text style={styles.sectionTitle}>History</Text>
+          <Pressable
+            accessibilityLabel={historyVisible ? 'Hide weight history' : 'Manage weight history'}
+            style={[styles.iconButton, historyVisible && styles.iconButtonActive]}
+            onPress={() => setHistoryVisible((current) => !current)}>
+            <MaterialIcons
+              name={historyVisible ? 'keyboard-arrow-up' : 'manage-search'}
+              size={22}
+              color={palette.text}
+            />
+          </Pressable>
+        </View>
+
+        {!historyVisible ? (
+          <Text style={styles.collapsedHint}>Tap the icon to edit or delete weight logs.</Text>
+        ) : null}
+      </>
+    );
+  }
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={styles.container}>
-      <Text style={styles.title}>Body Weight</Text>
-
-      <View style={styles.summaryCard}>
-        <Text style={styles.summaryLabel}>Latest Weight</Text>
-        <Text style={styles.summaryValue}>
-          {latestLog ? `${latestLog.weight_kg} kg` : '-- kg'}
-        </Text>
-        <Text style={styles.summaryDate}>{latestLog ? latestLog.date : 'No logs yet'}</Text>
-      </View>
-
-      <View style={styles.formCard}>
-        <Text style={styles.label}>Date</Text>
-        <TextInput
-          value={date}
-          onChangeText={setDate}
-          placeholder="YYYY-MM-DD"
-          placeholderTextColor="#777"
-          style={styles.input}
-        />
-
-        <Text style={styles.label}>Weight</Text>
-        <View style={styles.inputWithUnit}>
-          <TextInput
-            value={weightKg}
-            onChangeText={setWeightKg}
-            placeholder="70"
-            placeholderTextColor="#777"
-            keyboardType="decimal-pad"
-            style={styles.unitInput}
-          />
-          <Text style={styles.unitText}>kg</Text>
-        </View>
-
-        <Pressable
-          style={[styles.saveButton, saving && styles.disabledButton]}
-          onPress={handleSave}
-          disabled={saving}>
-          <Text style={styles.saveButtonText}>{saving ? 'Saving...' : 'Save Weight'}</Text>
-        </Pressable>
-      </View>
-
-      {renderWeightChart()}
-
-      <View style={styles.historyHeader}>
-        <Text style={styles.sectionTitle}>History</Text>
-        <Pressable
-          accessibilityLabel={historyVisible ? 'Hide weight history' : 'Manage weight history'}
-          style={[styles.iconButton, historyVisible && styles.iconButtonActive]}
-          onPress={() => setHistoryVisible((current) => !current)}>
-          <MaterialIcons
-            name={historyVisible ? 'keyboard-arrow-up' : 'manage-search'}
-            size={22}
-            color={palette.text}
-          />
-        </Pressable>
-      </View>
-
-      {historyVisible ? (
-        loading ? (
-          <ActivityIndicator color="#ffffff" style={styles.loader} />
-        ) : (
-          <FlatList
-            data={logs}
-            keyExtractor={(item) => String(item.id)}
-            renderItem={renderLog}
-            contentContainerStyle={logs.length === 0 ? styles.emptyContainer : styles.list}
-            ListEmptyComponent={
-              <Text style={styles.emptyText}>No body weight logs yet.</Text>
-            }
-          />
-        )
-      ) : (
-        <Text style={styles.collapsedHint}>Tap the icon to edit or delete weight logs.</Text>
-      )}
+      <FlatList
+        data={historyVisible && !loading ? logs : []}
+        keyExtractor={(item) => String(item.id)}
+        renderItem={renderLog}
+        ItemSeparatorComponent={() => <View style={styles.listSeparator} />}
+        ListHeaderComponent={renderHeader}
+        ListFooterComponent={
+          historyVisible && loading ? (
+            <ActivityIndicator color="#ffffff" style={styles.loader} />
+          ) : null
+        }
+        ListEmptyComponent={
+          historyVisible && !loading ? (
+            <Text style={styles.emptyText}>No body weight logs yet.</Text>
+          ) : null
+        }
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -266,7 +278,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: palette.background,
+  },
+  content: {
     padding: spacing.page,
+    paddingBottom: 112,
   },
   title: {
     color: palette.text,
@@ -457,6 +472,9 @@ const styles = StyleSheet.create({
   list: {
     gap: 12,
     paddingBottom: 24,
+  },
+  listSeparator: {
+    height: 12,
   },
   card: {
     backgroundColor: palette.surface,

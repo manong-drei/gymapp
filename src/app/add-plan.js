@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -10,30 +10,60 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 
 import { palette, radius, spacing } from '../constants/design';
 import { createWorkoutPlan } from '../database/workoutQueries';
 
 export default function AddPlanScreen() {
+  const savingRef = useRef(false);
+  const createdPlanIdRef = useRef(null);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
 
+  useFocusEffect(
+    useCallback(() => {
+      if (createdPlanIdRef.current) {
+        router.replace('/plan');
+      }
+    }, [])
+  );
+
   async function handleSave() {
+    if (savingRef.current) {
+      return;
+    }
+
+    if (createdPlanIdRef.current) {
+      router.replace({ pathname: '/plan-exercises', params: { planId: createdPlanIdRef.current } });
+      return;
+    }
+
     if (!name.trim()) {
       Alert.alert('Missing Name', 'Workout plan name is required.');
       return;
     }
 
     try {
+      savingRef.current = true;
       setSaving(true);
-      await createWorkoutPlan(name, description);
-      router.back();
+      const newPlanId = await createWorkoutPlan(name, description);
+
+      if (!newPlanId) {
+        Alert.alert('Error', 'Workout plan was saved, but could not open its exercises.');
+        return;
+      }
+
+      createdPlanIdRef.current = newPlanId;
+      setName('');
+      setDescription('');
+      router.replace({ pathname: '/plan-exercises', params: { planId: newPlanId } });
     } catch (error) {
       console.error('Failed to create workout plan', error);
       Alert.alert('Error', 'Could not save workout plan.');
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }
@@ -73,7 +103,10 @@ export default function AddPlanScreen() {
             <Text style={styles.saveButtonText}>{saving ? 'Saving...' : 'Save Plan'}</Text>
           </Pressable>
 
-          <Pressable style={styles.cancelButton} onPress={() => router.back()}>
+          <Pressable
+            style={[styles.cancelButton, saving && styles.disabledButton]}
+            onPress={() => router.back()}
+            disabled={saving}>
             <Text style={styles.cancelButtonText}>Cancel</Text>
           </Pressable>
         </View>

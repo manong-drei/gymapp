@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import {
   ActivityIndicator,
   Alert,
@@ -9,8 +10,10 @@ import {
   View,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette, radius, spacing } from '../constants/design';
+import { getExerciseCountByWorkoutPlanId } from '../database/exerciseQueries';
 import { deleteWorkoutPlan, getWorkoutPlans } from '../database/workoutQueries';
 
 function formatDate(value) {
@@ -22,6 +25,7 @@ function formatDate(value) {
 }
 
 export default function PlanScreen() {
+  const insets = useSafeAreaInsets();
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -63,6 +67,25 @@ export default function PlanScreen() {
     ]);
   }
 
+  async function startWorkout(plan) {
+    try {
+      const exerciseCount = await getExerciseCountByWorkoutPlanId(plan.id);
+
+      if (exerciseCount === 0) {
+        Alert.alert(
+          'No Exercises',
+          'Add at least one exercise to this workout plan before starting.'
+        );
+        return;
+      }
+
+      router.push({ pathname: '/start-workout', params: { planId: plan.id } });
+    } catch (error) {
+      console.error('Failed to check workout plan exercises', error);
+      Alert.alert('Error', 'Could not start this workout.');
+    }
+  }
+
   function renderPlan({ item }) {
     return (
       <View style={styles.card}>
@@ -72,7 +95,7 @@ export default function PlanScreen() {
 
         <Pressable
           style={styles.startButton}
-          onPress={() => router.push({ pathname: '/start-workout', params: { planId: item.id } })}>
+          onPress={() => startWorkout(item)}>
           <Text style={styles.startButtonText}>Start Workout</Text>
         </Pressable>
 
@@ -119,9 +142,6 @@ export default function PlanScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Workout Plans</Text>
-        <Pressable style={styles.addButton} onPress={() => router.push('/add-plan')}>
-          <Text style={styles.addButtonText}>Add Workout Plan</Text>
-        </Pressable>
       </View>
 
       {loading ? (
@@ -135,6 +155,13 @@ export default function PlanScreen() {
           ListEmptyComponent={renderEmptyPlans}
         />
       )}
+
+      <Pressable
+        style={[styles.addButton, { bottom: Math.max(insets.bottom, 16) }]}
+        onPress={() => router.push('/add-plan')}>
+        <MaterialIcons name="add" color="#fff" size={22} />
+        <Text style={styles.addButtonText}>Add Workout Plan</Text>
+      </Pressable>
     </View>
   );
 }
@@ -146,7 +173,6 @@ const styles = StyleSheet.create({
     padding: spacing.page,
   },
   header: {
-    gap: 16,
     marginBottom: 20,
   },
   title: {
@@ -155,10 +181,18 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   addButton: {
+    position: 'absolute',
+    left: spacing.page,
+    right: spacing.page,
     backgroundColor: palette.primary,
     borderRadius: radius.sm,
+    minHeight: 56,
+    paddingHorizontal: 18,
     paddingVertical: 14,
     alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
   },
   addButtonText: {
     color: '#fff',
@@ -169,7 +203,7 @@ const styles = StyleSheet.create({
     marginTop: 40,
   },
   listContent: {
-    paddingBottom: 24,
+    paddingBottom: 96,
     gap: 12,
   },
   card: {
@@ -235,6 +269,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
+    paddingBottom: 96,
   },
   emptyText: {
     color: palette.textMuted,

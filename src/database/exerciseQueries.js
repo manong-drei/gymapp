@@ -58,6 +58,16 @@ export async function getExercisesByWorkoutPlanId(workoutPlanId) {
   );
 }
 
+export async function getExerciseCountByWorkoutPlanId(workoutPlanId) {
+  const db = await getDatabase();
+  const row = await db.getFirstAsync(
+    'SELECT COUNT(*) AS exercise_count FROM exercises WHERE workout_plan_id = ?',
+    [workoutPlanId]
+  );
+
+  return row?.exercise_count ?? 0;
+}
+
 export async function getExerciseById(id) {
   const db = await getDatabase();
 
